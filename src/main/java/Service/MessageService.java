@@ -21,9 +21,19 @@ public class MessageService {
         return messageDAO.createMessage(message);
     }  
 
-    public Message getMessageById(int id) {
-        return messageDAO.getMessageById(id);
+    public static class MessageNotFoundException extends RuntimeException {
+        public MessageNotFoundException(String message) {
+            super(message);
+        }
     }
+    
+    public Message getMessageById(int id) {
+        Message message = messageDAO.getMessageById(id);
+        if (message == null) {
+            throw new MessageNotFoundException("Message not found");
+        }
+        return message;
+    }    
     
     public List<Message> getMessagesByUserId(int posted_by) {
         return messageDAO.getMessagesByUserId(posted_by);
@@ -37,15 +47,15 @@ public class MessageService {
         return messages;
     }   
 
-    public boolean updateMessage(Message message) {
+    public boolean updateMessage(Message message) throws MessageNotFoundException {
         int messageId = message.getMessage_id();
         Message existingMessage = messageDAO.getMessageById(messageId);
-        if (existingMessage != null) {
+        if (existingMessage == null) {
+            throw new MessageNotFoundException("Message not found with ID: " + messageId);
+        } else {
             existingMessage.setMessage_text(message.getMessage_text());
             existingMessage.setTime_posted_epoch(message.getTime_posted_epoch());
             return messageDAO.updateMessage(existingMessage);
-        } else {
-            return false;
         }
     }
     

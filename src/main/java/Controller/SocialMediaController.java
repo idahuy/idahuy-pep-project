@@ -219,15 +219,17 @@ public class SocialMediaController {
 
     public void getMessageHandler(Context context) {
         int messageId = Integer.parseInt(context.pathParam("id"));
-        Message message = messageService.getMessageById(messageId);
-        if (message == null) {
-            context.status(404); // Not Found
-            context.result("{\"error\":\"Message not found.\"}");
-        } else {
-            context.status(200); // OK
+        Message message;
+    
+        try {
+            message = messageService.getMessageById(messageId);
+            context.header("Content-Type", "application/json");
             context.json(message);
+        } catch (MessageService.MessageNotFoundException e) {
+            context.status(200); // OK
+            context.result(""); // Empty body
         }
-    }
+    }    
 
     public void getMessagesByAccountIdHandler(Context context) {
         int accountId = Integer.parseInt(context.pathParam("id"));
@@ -244,65 +246,71 @@ public class SocialMediaController {
         }
     }
     
-     public void deleteMessageHandler(Context context) {
+    public void deleteMessageHandler(Context context) {
         int messageId = Integer.parseInt(context.pathParam("id"));
-        Message message = messageService.getMessageById(messageId);
-
-        if (message == null) {
+        Message message = null;
+    
+        try {
+            message = messageService.getMessageById(messageId);
+        } catch (MessageService.MessageNotFoundException e) {
             context.status(200); // OK
             context.result(""); // empty body
-        } else {
-            Message deletedMessage = messageService.deleteMessage(messageId);
-
-            if (deletedMessage != null) {
-                context.status(200); // OK
-                context.header("Content-Type", "application/json");
-                context.json(deletedMessage);
-            } else {
-                context.status(500); // Internal Server Error
-                ObjectNode errorNode = objectMapper.createObjectNode();
-                errorNode.put("error", "Failed to delete message.");
-                context.json(errorNode);
-            }
+            return;
         }
-    }
-
+    
+        Message deletedMessage = messageService.deleteMessage(messageId);
+    
+        if (deletedMessage != null) {
+            context.status(200); // OK
+            context.header("Content-Type", "application/json");
+            context.json(deletedMessage);
+        } else {
+            context.status(500); // Internal Server Error
+            ObjectNode errorNode = objectMapper.createObjectNode();
+            errorNode.put("error", "Failed to delete message.");
+            context.json(errorNode);
+        }
+    }    
+    
     public void updateMessageHandler(Context context) throws JsonProcessingException {
         int messageId = Integer.parseInt(context.pathParam("id"));
-        Message existingMessage = messageService.getMessageById(messageId);
+        Message existingMessage;
     
-        if (existingMessage == null) {
+        try {
+            existingMessage = messageService.getMessageById(messageId);
+        } catch (MessageService.MessageNotFoundException e) {
             context.status(400); // Bad Request
             ObjectNode errorNode = objectMapper.createObjectNode();
             errorNode.put("error", "Message with id " + messageId + " does not exist.");
             context.json(errorNode);
+            return;
+        }
+    
+        JsonNode requestBody = context.bodyAsClass(JsonNode.class);
+        if (requestBody.get("message_text") == null || requestBody.get("message_text").asText().isEmpty()) {
+            context.status(400); // Bad Request
+            ObjectNode errorNode = objectMapper.createObjectNode();
+            errorNode.put("error", "Message text is required.");
+            context.json(errorNode);
+        } else if (requestBody.get("message_text").asText().length() > 255) {
+            context.status(400); // Bad Request
+            ObjectNode errorNode = objectMapper.createObjectNode();
+            errorNode.put("error", "Message text cannot be longer than 255 characters.");
+            context.json(errorNode);
         } else {
-            JsonNode requestBody = context.bodyAsClass(JsonNode.class);
-            if (requestBody.get("message_text") == null || requestBody.get("message_text").asText().isEmpty()) {
-                context.status(400); // Bad Request
-                ObjectNode errorNode = objectMapper.createObjectNode();
-                errorNode.put("error", "Message text is required.");
-                context.json(errorNode);
-            } else if (requestBody.get("message_text").asText().length() > 255) {
-                context.status(400); // Bad Request
-                ObjectNode errorNode = objectMapper.createObjectNode();
-                errorNode.put("error", "Message text cannot be longer than 255 characters.");
-                context.json(errorNode);
+            existingMessage.setMessage_text(requestBody.get("message_text").asText());
+            boolean updated = messageService.updateMessage(existingMessage);
+            if (updated) {
+                context.status(200); // OK
+                context.header("Content-Type", "application/json");
+                context.json(existingMessage);
             } else {
-                existingMessage.setMessage_text(requestBody.get("message_text").asText());
-                boolean updated = messageService.updateMessage(existingMessage);
-                if (updated) {
-                    context.status(200); // OK
-                    context.header("Content-Type", "application/json");
-                    context.json(existingMessage);
-                } else {
-                    context.status(500); // Internal Server Error
-                    ObjectNode errorNode = objectMapper.createObjectNode();
-                    errorNode.put("error", "Failed to update message.");
-                    context.json(errorNode);
-                }
+                context.status(500); // Internal Server Error
+                ObjectNode errorNode = objectMapper.createObjectNode();
+                errorNode.put("error", "Failed to update message.");
+                context.json(errorNode);
             }
         }
-    }
+    }    
     
 }
