@@ -3,12 +3,10 @@ package Service;
 import Model.Account;
 import DAO.AccountDAO;
 import java.util.List;
-import java.util.ArrayList;
 
 public class AccountService {
     
     private AccountDAO accountDAO;
-    private List<Account> accounts = new ArrayList<>();
 
     public AccountService() {
         accountDAO = new AccountDAO();
